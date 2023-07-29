@@ -1,5 +1,30 @@
 {
+  "compileOnSave": false,
   "compilerOptions": {
-    "target": "esnext"
+    "target": "ES2021",
+    "module": "ESNext",
+    "jsx": "react",
+    "allowJs": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "lib": ["ES2021", "ESNext", "DOM"],
+    "strictNullChecks": true,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true
+  },
+  "include": ["index.ts"],
+  "exclude": ["node_modules"],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
   }
 }

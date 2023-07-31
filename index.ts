@@ -115,15 +115,21 @@ const filesById: Record<FileId, File> = {
   'a0a0939e-feb1-4923-943e-96562240197c': {
     id: 'a0a0939e-feb1-4923-943e-96562240197c',
     ownerId: '5c17178a-d0eb-4dd9-ad99-7bdc9be6d60d',
-    name: 'asdf',
+    name: 'can NOT view because different company',
     permissionLevel: PermissionLevelEnum.COMPANY_ONLY,
   },
   'a0a0939e-c31e-4848-a2f2-14756b9a9001': {
     id: 'a0a0939e-c31e-4848-a2f2-14756b9a9001',
     ownerId: 'd9ee1fa1-9383-46bf-8931-ccd7da7b8b5e',
-    name: 'asdf',
+    name: 'can view because public',
     permissionLevel: PermissionLevelEnum.PUBLIC,
   },
+  'be5a279c-5c86-431c-9ed9-c495659d1c21': {
+    id: 'be5a279c-5c86-431c-9ed9-c495659d1c21',
+    ownerId: 'c8936de5-22a4-4b25-9510-26114074dbc4',
+    name: 'can view because same company',
+    permissionLevel: PermissionLevelEnum.COMPANY_ONLY,
+  }
 };
 
 //------------------------------------------------
@@ -140,8 +146,49 @@ type CurrentUserAuthorizedFileAccess = Brand<
   CurrentUserUnauthorizedFile,
   'AuthorizedFileAccess'
 >;
-const CurrentUserAuthorizedFileAccess = CurrentUserUnauthorizedFile.refine(
-  isCurrentUserAuthorizedForFile
+const CurrentUserAuthorizedFileAccess = CurrentUserUnauthorizedFile.superRefine(
+  (props, ctx) => {
+    const fileOwnedByCurrentUser = props.file.ownerId === props.currentUser.id;
+    const resolvedFileOwner = (usersById as any)[props.file.ownerId] as User;
+    const fileInSameCompanyAsCurrentUser =
+      resolvedFileOwner &&
+      resolvedFileOwner.companyId === props.currentUser.companyId;
+
+    const canAccessBecauseIsCurrentOwner = (props.file.permissionLevel === PermissionLevelEnum.OWNER_ONLY &&
+      fileOwnedByCurrentUser);
+    const canAccessBecauseIsSameCompany = props.file.permissionLevel === PermissionLevelEnum.COMPANY_ONLY &&
+      fileInSameCompanyAsCurrentUser;
+    const canAccessBecausePublic = props.file.permissionLevel === PermissionLevelEnum.PUBLIC
+    
+    const finalDecision = canAccessBecauseIsCurrentOwner || canAccessBecauseIsSameCompany || canAccessBecausePublic;
+      
+    if (!finalDecision) {
+      if (!canAccessBecauseIsCurrentOwner) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "User is not the current owner of the file",
+        });
+      }
+
+      if (!canAccessBecauseIsSameCompany) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cannot access through company",
+        });
+      }
+
+      if (!canAccessBecausePublic) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "File is not public",
+        });
+      }
+
+      return z.NEVER;
+    }
+
+    return true;
+  }
 );
 function isCurrentUserAuthorizedForFile(
   props: CurrentUserUnauthorizedFile
@@ -180,7 +227,7 @@ if (isCurrentUser(maybeCurrentUser)) {
   };
   if (isCurrentUserAuthorizedForFile(currentUserUnauthorizedFile)) {
     const currentUserAuthorizedFile = currentUserUnauthorizedFile;
-    //          ^?
+    //          ^?  
   }
 }
 
@@ -189,14 +236,35 @@ const currentUser = CurrentUser.parse(
   (usersById as any)['2fd50c57-b023-4df9-aa8a-d1f2b0191461']
 );
 //     ^?
-const file = File.parse(
+const canViewBecauseOwn = File.parse(
   (filesById as any)['bcf0b0a0-0b1e-4b0e-9b0a-9b0a9b0a9b0a']
 );
-//     ^?
-const currentUserUnauthorizedFile = CurrentUserAuthorizedFileAccess.parse({
-  //       ^?
-  currentUser,
-  file,
-});
+    // ^?
+const canNotViewBecauseDiffCompany = File.parse(
+  (filesById as any)['a0a0939e-feb1-4923-943e-96562240197c']
+)
+const canViewBecausePublic = File.parse(
+  (filesById as any)['a0a0939e-c31e-4848-a2f2-14756b9a9001']
+)
+const canViewBecauseSameCompany = File.parse(
+  (filesById as any)['be5a279c-5c86-431c-9ed9-c495659d1c21']
+)
 
-document.body.innerHTML = JSON.stringify(currentUserUnauthorizedFile);
+try {
+  const currentUserAuthorizedFile = CurrentUserAuthorizedFileAccess.parse({
+    //       ^?
+    currentUser,
+    file: canViewBecauseSameCompany,
+  });
+  
+  document.body.innerHTML = JSON.stringify(currentUserAuthorizedFile);
+} catch (e) {
+  document.body.innerHTML = JSON.stringify(e);
+}
+
+type Expect<T extends true> = T;
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y
+  ? 1
+  : 2
+  ? true
+  : false;
